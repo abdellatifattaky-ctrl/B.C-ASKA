@@ -6,7 +6,6 @@ from docx.shared import Inches, Pt, Cm
 from io import BytesIO
 from datetime import date
 from num2words import num2words
-
 def format_to_words_fr(amount_str):
     try:
         val = float(str(amount_str).replace(' ', '').replace(',', ''))
@@ -18,23 +17,18 @@ def format_to_words_fr(amount_str):
         else: text += " ,00CTS"
         return text
     except: return "________________"
-
 st.set_page_config(page_title="Commune Askaouen - Système PV", layout="wide")
-
 # أعضاء اللجنة
 st.sidebar.header("Membres de la Commission")
 p_name = st.sidebar.text_input("Président", "MOHAMED ZILALI")
 d_name = st.sidebar.text_input("Directeur du service", "M BAREK BAK")
 t_name = st.sidebar.text_input("Technicien", "ABDELLATIF ATTAKY")
-
 st.title("🏛️نظام استخراج المحاضر - جماعة أسكاون")
-
 with st.expander("📝 Détails Administratifs", expanded=True):
     c1, c2 = st.columns(2)
     num_bc = c1.text_input("N° BC", "01/ASK/2026")
 date_pub = c2.date_input("Date de publication", date(2025, 3, 25))
 obj_bc = st.text_area("Objet", "Achat de matériel...")
-
 # جدول المتنافسين
 st.subheader("📊 Liste des concurrents")
 df_init = pd.DataFrame([
@@ -45,13 +39,11 @@ df_init = pd.DataFrame([
     {"Rang": 5, "Nom": "TOUZANI 2ZD", "Montant": "114072.00"}
 ])
 data = st.data_editor(df_init, use_container_width=True)
-
 st.divider()
 c_pv1, c_pv2, c_pv3 = st.columns(3)
 pv_num = c_pv1.selectbox("Numéro du PV:", [1, 2, 3, 4, 5, 6])
 reunion_date = c_pv3.date_input("Date de la séance", date.today())
 reunion_hour = st.text_input("Heure", "10h00mn")
-
 is_infructueux = False
 is_final_attr = False
 if pv_num == 6:
@@ -124,13 +116,11 @@ p_res.bold = True
 # نص الاستدعاء للمحاضر الوسطى (2، 3، 4...)
 doc.add_paragraph(f"Après vérification du portail des marchés publics, la commission constate que la société {prev_company} n’a pas confirmé son offre par lettre de confirmation.")
 doc.add_paragraph(f"Après écartement de la société {prev_company}, le président de la commission invite la société : {curr_company} qui est classé le {pv_num}éme pour un montant de {curr_amount} Dhs TTC ({amt_w}) à confirmer son offre par lettre de confirmation.")
-
 doc.add_paragraph(f"\nFait à Askaouen, le {reunion_date.strftime('%d/%m/%Y')}").alignment = WD_ALIGN_PARAGRAPH.RIGHT
 sig_tab = doc.add_table(rows=2, cols=3)
 sig_tab.rows[0].cells[0].text = "Le Président";sig_tab.rows[0].cells[1].text = "Le Directeur";sig_tab.rows[0].cells[2].text = "Le Technicien"
 sig_tab.rows[1].cells[0].text, sig_tab.rows[1].cells[1].text, sig_tab.rows[1].cells[2].text = p_name, d_name, t_name
     for r in sig_tab.rows:
         for c in r.cells: c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-
     bio = BytesIO(); doc.save(bio)
 st.download_button(f"📥تحميل المحضر رقم {pv_num}", bio.getvalue(), f"PV_{pv_num}_Askaouen.docx")
