@@ -76,7 +76,7 @@ with tab_gen:
     pv_num = c_v1.selectbox("Numéro du PV:", [1, 2, 3, 4, 5, 6])
     reunion_date = c_v3.date_input("Date de la séance", date.today())
     reunion_hour = c_v2.text_input("Heure", "12h00mn")
-    next_meeting = st.date_input("Prochain RDV (J+1)", reunion_date + timedelta(days=1))
+    next_meeting = st.date_input("Prochain RDV", reunion_date + timedelta(days=1))
     is_final = st.checkbox("✅ Attribution Finale (إسناد)")
 
     if st.button("🚀 Générer le Procès Verbal"):
@@ -85,14 +85,14 @@ with tab_gen:
         section.page_height, section.page_width = Cm(29.7), Cm(21)
         section.left_margin, section.right_margin = Cm(2.5), Cm(2)
 
-        # --- Header (تصحيح الترويسة يمين/يسار) ---
+        # --- Header (الترويسة الرسمية المحدثة) ---
         header = section.header
         htable = header.add_table(1, 3, Inches(6.5))
         
         # اليسار (Français)
         c_left = htable.rows[0].cells[0].paragraphs[0]
-        c_left.text = "ROYAUME DU MAROC\nMINISTERE DE L'INTERIEUR\nCOMMUNE D'ASKAOUN"
-        c_left.style.font.size = Pt(10)
+        c_left.text = "ROYAUME DU MAROC\nMINISTERE DE L'INTERIEUR\nPROVINCE DE TAROUDANT\nCOMMUNE D'ASKAOUN"
+        c_left.style.font.size = Pt(9)
         
         # الوسط (Logo)
         if st.session_state['logo_data']:
@@ -100,11 +100,11 @@ with tab_gen:
             logo_run.add_picture(BytesIO(st.session_state['logo_data']), width=Cm(1.8))
             htable.rows[0].cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-        # اليمين (Arabe)
+        # اليمين (Arabe) - التنسيق المطلوب
         c_right = htable.rows[0].cells[2].paragraphs[0]
-        c_right.text = "المملكة المغربية\nوزارة الداخلية\nجماعة أسكاون"
+        c_right.text = "المملكة المغربية\nوزارة الداخلية\nإقليم تارودانت\nجماعة أسكاون"
         c_right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        c_right.style.font.size = Pt(10)
+        c_right.style.font.size = Pt(9)
 
         # --- العنوان ---
         pv_lbl = "1ére" if pv_num == 1 else f"{pv_num}éme"
@@ -120,7 +120,7 @@ with tab_gen:
         for m in selected_members:
             doc.add_paragraph(f"- {m['name']} : {m['role']}")
 
-        doc.add_paragraph(f"\nS’est réunie dans la salle de la réunion de la commune sur invitation du président de la commission d’ouverture des plis concernant l’avis d’achat du bon de commande n° {num_bc} publié le : {date_pub.strftime('%d/%m/%Y')} sur le portail des marchés publics, en application des dispositions de l’article 91 du décret n° 2-22-431 ( 8 مارس 2023 ) relatif aux marchés publics, ayant pour objet : {obj_bc}")
+        doc.add_paragraph(f"\nS’est réunie dans la salle de la réunion de la commune sur invitation du président de la commission d’ouverture des plis concernant l’avis d’achat du bon de commande n° {num_bc} publié le : {date_pub.strftime('%d/%m/%Y')} sur le portail des marchés publics, en application des dispositions de l’article 91 du décret n° 2-22-431 ( 8 mars 2023 ) relatif aux marchés publics, ayant pour objet : {obj_bc}")
 
         idx = min(pv_num - 1, len(data)-1)
         curr_co = data.iloc[idx]
@@ -143,12 +143,11 @@ with tab_gen:
             add_to_archive(num_bc, reunion_date.strftime('%d/%m/%Y'), obj_bc, curr_co['Nom'], curr_co['Montant'])
         
         else:
-            # استعادة الفقرة القانونية المفقودة للمحاضر الانتقالية
             prev_co = data.iloc[idx-1]
             doc.add_paragraph(f"Après vérification du portail des marchés publics, la commission d’ouverture des plis constate que la société {prev_co['Nom']} n’a pas confirmé son offre par lettre de confirmation.")
             doc.add_paragraph(f"Après écartement de la société {prev_co['Nom']} le président de la commission invite la société : {curr_co['Nom']} qui est classé le {pv_num}éme pour un montant de {curr_co['Montant']} Dhs TTC ({amt_w}) à confirmer son offre، et suspend la séance et fixe un rendez-vous le {next_meeting.strftime('%d/%m/%Y')} ou sur invitation.")
 
-        # --- جدول التوقيعات (مساحات واسعة) ---
+        # --- التوقيعات ---
         doc.add_paragraph(f"\nAskaouen le {reunion_date.strftime('%d/%m/%Y')}\n")
         sig_tab = doc.add_table(rows=0, cols=2)
         sig_tab.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -162,7 +161,7 @@ with tab_gen:
             r_s = sig_tab.add_row(); r_s.height = Cm(2.8)
 
         bio = BytesIO(); doc.save(bio)
-        st.success("✅ PV Généré avec succès !")
+        st.success("✅ PV Généré avec la nouvelle en-tête !")
         st.download_button("📥 Télécharger le PV Final", bio.getvalue(), f"PV_Askaouen_{pv_num}.docx")
 
 with tab_arch:
@@ -170,4 +169,3 @@ with tab_arch:
     if os.path.isfile(ARCHIVE_FILE):
         archive_df = pd.read_csv(ARCHIVE_FILE, encoding='utf-16')
         st.dataframe(archive_df, use_container_width=True)
-        st.download_button("📥 Exporter l'Archive", archive_df.to_csv(index=False).encode('utf-16'), "Archive_Askaouen.csv")
