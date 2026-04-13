@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, Cm
@@ -7,7 +8,7 @@ from io import BytesIO
 from datetime import date, timedelta
 from num2words import num2words
 
-# --- 1. الدوال المساعدة للنصوص الرسمية ---
+# --- 1. الدوال المساعدة ---
 def format_to_words_fr(amount_str):
     try:
         val = float(str(amount_str).replace(' ', '').replace(',', ''))
@@ -23,126 +24,143 @@ def apply_official_header(doc, logo_data):
     section = doc.sections[0]
     header = section.header
     htable = header.add_table(1, 3, Inches(6.5))
-    # يسار
+    # يسار - فرنسي
     c_left = htable.rows[0].cells[0].paragraphs[0]
     c_left.text = "ROYAUME DU MAROC\nMINISTERE DE L'INTERIEUR\nPROVINCE DE TAROUDANT\nCOMMUNE D'ASKAOUN"
     c_left.style.font.size = Pt(9)
-    # وسط
+    # وسط - شعار
     if logo_data:
-        logo_run = htable.rows[0].cells[1].paragraphs[0].add_run()
-        logo_run.add_picture(BytesIO(logo_data), width=Cm(1.8))
-        htable.rows[0].cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    # يمين
+        try:
+            logo_run = htable.rows[0].cells[1].paragraphs[0].add_run()
+            logo_run.add_picture(BytesIO(logo_data), width=Cm(1.8))
+            htable.rows[0].cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        except: pass
+    # يمين - عربي
     c_right = htable.rows[0].cells[2].paragraphs[0]
     c_right.text = "المملكة المغربية\nوزارة الداخلية\nإقليم تارودانت\nجماعة أسكاون"
     c_right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     c_right.style.font.size = Pt(9)
 
+# --- 2. إعدادات الجلسة والواجهة ---
 st.set_page_config(page_title="Système Intégré Askaouen", layout="wide")
 
-# --- 2. تبويبات النظام ---
-tab_pv, tab_os_notif, tab_reception, tab_photos = st.tabs([
-    "🏛️ محاضر فتح الأظرفة", "✉️ الإشعار و OS", "🏗️ تسليم الأشغال", "📸 صور الأوراش"
-])
+if 'logo_data' not in st.session_state:
+    st.session_state['logo_data'] = None
 
-# --- التبويب 2: النماذج الرسمية لـ OS و Notification ---
-with tab_os_notif:
-    st.subheader("Génération de la Notification et l'Ordre de Service")
-    with st.form("os_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            st_societe = st.text_input("Nom de la Société (الفائزة)", "STE ...")
-            st_montant = st.text_input("Montant de l'offre (DHS TTC)", "0.00")
-            st_objet = st.text_area("Objet du BC (موضوع الصفقة)", "Location de matériel...")
-        with col2:
-            st_bc_num = st.text_input("N° Bon de Commande", "01/ASK/2026")
-            st_os_num = st.text_input("N° Ordre de Service", "01/2026")
-            st_date_start = st.date_input("Date de commencement (تاريخ البدء)", date.today())
-            st_delai = st.number_input("Délai d'exécution (بالأيام)", value=10)
-        
-        submit_os = st.form_submit_button("🚀 توليد الوثائق الرسمية")
+# --- 3. الشريط الجانبي (Logo & Members) ---
+st.sidebar.header("⚙️ الإعدادات العامة")
+uploaded_logo = st.sidebar.file_uploader("ارفع شعار الجماعة", type=['png', 'jpg', 'jpeg'])
+if uploaded_logo:
+    st.session_state['logo_data'] = uploaded_logo.getvalue()
 
-    if submit_os:
+st.sidebar.divider()
+st.sidebar.header("👥 أعضاء اللجنة")
+members_list = [
+    {"name": "MOHAMED ZILALI", "role": "Président de la commission"},
+    {"name": "M BAREK BAK", "role": "Directeur du service"},
+    {"name": "ATTAKY ABDELLATIF", "role": "Technicien de la commune"},
+    {"name": "NOUREDDIN SALHI", "role": "Service des dépenses"},
+    {"name": "FAYSSAL KADRI", "role": "Technicien à la commune"}
+]
+selected_members = []
+for m in members_list:
+    if st.sidebar.checkbox(m['name'], value=True):
+        selected_members.append(m)
+
+# --- 4. التبويبات الرئيسية ---
+tab_pv, tab_docs, tab_photos = st.tabs(["🏛️ المحاضر (PV 1-6)", "✉️ الوثائق الرسمية (OS)", "📸 صور الأوراش"])
+
+# --- التبويب الأول: المحاضر الرسمية ---
+with tab_pv:
+    st.subheader("توليد محاضر فتح الأظرفة (1ére - 6éme)")
+    with st.expander("📝 معلومات طلب السند (BC)", expanded=True):
+        c1, c2 = st.columns(2)
+        bc_num = c1.text_input("N° BC", "01/ASK/2026")
+        bc_date_pub = c2.date_input("تاريخ النشر", date(2026, 3, 1))
+        bc_objet = st.text_area("الموضوع (Objet)", "Location de matériel...")
+
+    st.subheader("📊 قائمة المتنافسين")
+    df_init = pd.DataFrame([
+        {"Rang": 1, "Nom": "STE OUBRAIM SARL", "Montant": "0.00"},
+        {"Rang": 2, "Nom": "DECO GRC", "Montant": "0.00"},
+        {"Rang": 3, "Nom": "AIT MOUMOU REALISATION", "Montant": "0.00"}
+    ])
+    competitors = st.data_editor(df_init, use_container_width=True)
+
+    c3, c4, c5 = st.columns(3)
+    pv_index = c3.selectbox("رقم المحضر:", [1, 2, 3, 4, 5, 6])
+    session_date = c4.date_input("تاريخ الجلسة", date.today())
+    next_date = c5.date_input("الموعد القادم", session_date + timedelta(days=1))
+    
+    is_final_attr = st.checkbox("✅ إسناد نهائي (Attribution)")
+
+    if st.button("🚀 توليد المحضر الرسمي"):
         doc = Document()
+        apply_official_header(doc, st.session_state['logo_data'])
         
-        # --- النموذج 1: Lettre de Notification (رسمي) ---
-        apply_official_header(doc, st.session_state.get('logo_data'))
-        doc.add_paragraph(f"\nAskaouen, le {date.today().strftime('%d/%m/%Y')}")
-        notif_title = doc.add_heading("LETTRE DE NOTIFICATION", 1)
-        notif_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        pv_label = "1ére" if pv_index == 1 else f"{pv_index}éme"
+        doc.add_heading(f"{pv_label} Procès verbal", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph("De la commission d’ouverture des plis\nProcédure Bon de commande").alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        doc.add_paragraph(f"\nA Monsieur le Gérant de la société : {st_societe}").bold = True
-        doc.add_paragraph(f"\nObjet : Notification de l'approbation du Bon de Commande n° {st_bc_num}")
-        doc.add_paragraph(f"Référence : Avis d'achat n° {st_bc_num}")
-        
-        p1 = doc.add_paragraph(f"\nJ'ai l'honneur de vous informer que votre offre concernant l'objet cité ci-dessus a été retenue par la commission d'ouverture des plis pour un montant de :")
-        doc.add_paragraph(f"{st_montant} DHS TTC ({format_to_words_fr(st_montant)}).").bold = True
-        
-        doc.add_paragraph("\nA cet effet, je vous invite à prendre contact avec les services de la commune pour la suite de la procédure.")
-        doc.add_paragraph("\nVeuillez agréer, Monsieur le Gérant, l'expression de mes salutations distinguées.")
-        
-        doc.add_page_break()
-
-        # --- النموذج 2: Ordre de Service (رسمي) ---
-        apply_official_header(doc, st.session_state.get('logo_data'))
-        doc.add_paragraph(f"\nAskaouen, le {date.today().strftime('%d/%m/%Y')}")
-        os_title = doc.add_heading(f"ORDRE DE SERVICE N° {st_os_num}", 1)
-        os_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        doc.add_paragraph(f"\nMarché/BC n° : {st_bc_num}")
-        doc.add_paragraph(f"Objet : {st_objet}")
-        doc.add_paragraph(f"A l'entreprise : {st_societe}").bold = True
-        
-        doc.add_paragraph(f"\nIl vous est prescrit par la présente de commencer l'exécution des prestations/travaux faisant l'objet du bon de commande cité ci-dessus à compter du :")
-        doc.add_paragraph(f"{st_date_start.strftime('%d/%m/%Y')}").bold = True
-        
-        doc.add_paragraph(f"\nLe délai d'exécution qui vous est imparti est de : {st_delai} jours.")
-        
-        # مكان التوقيع
-        sig_os = doc.add_table(1, 2, width=Inches(6))
-        sig_os.cell(0, 0).text = "Accusé de réception par l'entreprise\n(Date et Signature)"
-        sig_os.cell(0, 1).text = "Le Président de la Commune\n(Signature et Cachet)"
-        sig_os.rows[0].height = Cm(3)
-
-        bio = BytesIO(); doc.save(bio)
-        st.success("✅ تم توليد الإشعار وأمر الخدمة بنجاح!")
-        st.download_button("📥 تحميل المستندات (OS + Notif)", bio.getvalue(), f"OS_Notification_{st_societe}.docx")
-
-# --- التبويب 3: محضر تسليم الأشغال (رسمي) ---
-with tab_reception:
-    st.subheader("Procès-Verbal de Réception des Travaux")
-    with st.form("recep_form"):
-        r_societe = st.text_input("Société", "STE ...")
-        r_bc = st.text_input("N° BC", "01/ASK/2026")
-        r_date = st.date_input("Date de Réception", date.today())
-        r_type = st.selectbox("Type de réception", ["Provisoire (مؤقت)", "Définitive (نهائي)"])
-        r_obs = st.text_area("Observations", "Conforme aux prescriptions techniques.")
-        submit_r = st.form_submit_button("🚀 توليد محضر التسليم الرسمي")
-
-    if submit_r:
-        doc = Document()
-        apply_official_header(doc, st.session_state.get('logo_data'))
-        
-        title_r = doc.add_heading(f"PROCES-VERBAL DE RECEPTION {r_type.upper()}", 1)
-        title_r.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        doc.add_paragraph(f"\nLe {r_date.strftime('%d/%m/%Y')}, la commission composée de :")
+        doc.add_paragraph(f"Objet : {bc_objet}").bold = True
+        doc.add_paragraph(f"Le {session_date.strftime('%d/%m/%Y')}, la commission composée de :")
         for m in selected_members:
             doc.add_paragraph(f"- {m['name']} : {m['role']}")
-            
-        doc.add_paragraph(f"\nS'est rendue sur les lieux pour procéder à la réception des travaux faisant l'objet du BC n° {r_bc} exécuté par la société {r_societe}.")
-        doc.add_paragraph(f"\nAprès examen et vérification, la commission constate que les prestations sont : {r_obs}")
-        doc.add_paragraph("\nEn conséquence, la commission déclare la réception des travaux sus-indiqués.")
-        
-        # جدول توقيعات اللجنة
-        doc.add_paragraph("\nSignatures des membres de la commission :")
-        sig_tab = doc.add_table(rows=0, cols=2)
-        for i in range(0, len(selected_members), 2):
-            row = sig_tab.add_row()
-            row.cells[0].text = selected_members[i]['name']
-            if i+1 < len(selected_members):
-                row.cells[1].text = selected_members[i+1]['name']
-            r_sp = sig_tab.add_row(); r_sp.height = Cm(2.5)
 
+        doc.add_paragraph(f"\nS’est réunie dans la salle de la réunion de la commune concernant l’avis d’achat du bon de commande n° {bc_num} publié le : {bc_date_pub.strftime('%d/%m/%Y')} على بوابة الصفقات العمومية.")
+
+        idx = min(pv_index - 1, len(competitors) - 1)
+        curr = competitors.iloc[idx]
+        amt_txt = format_to_words_fr(curr['Montant'])
+
+        if pv_index == 1:
+            doc.add_paragraph(f"Le président invite la société : {curr['Nom']} (moins disant) بمبلغ {curr['Montant']} Dhs TTC ({amt_txt}) à confirmer son offre، RDV le {next_date.strftime('%d/%m/%Y')}.")
+        elif is_final_attr:
+            doc.add_paragraph(f"La commission VALIDE la confirmation et ATTRIBUE le BC à {curr['Nom']} بمبلغ {curr['Montant']} Dhs TTC.")
+        else:
+            prev = competitors.iloc[idx-1]
+            doc.add_paragraph(f"Après vérification... {prev['Nom']} n’a pas confirmé. Le président invite {curr['Nom']} ({pv_index}éme) بمبلغ {curr['Montant']} Dhs à confirmer، RDV le {next_date.strftime('%d/%m/%Y')}.")
+
+        # توقيعات
+        sig_tab = doc.add_table(rows=2, cols=2); sig_tab.rows[1].height = Cm(2.5)
+        
         bio = BytesIO(); doc.save(bio)
-        st.download_button("📥 تحميل محضر التسليم", bio.getvalue(), "PV_Reception.docx")
+        st.download_button("📥 تحميل المحضر", bio.getvalue(), f"PV_{pv_index}.docx")
+
+# --- التبويب الثاني: OS & Notification ---
+with tab_docs:
+    st.subheader("توليد الإشعار (Notification) وأمر الخدمة (OS)")
+    with st.form("docs_form"):
+        f_soc = st.text_input("اسم الشركة الفائزة")
+        f_amt = st.text_input("المبلغ الإجمالي (DHS TTC)")
+        f_delai = st.number_input("مدة التنفيذ (أيام)", value=10)
+        submit_docs = st.form_submit_button("🚀 توليد المستندات")
+
+    if submit_docs:
+        doc = Document()
+        apply_official_header(doc, st.session_state['logo_data'])
+        doc.add_heading("LETTRE DE NOTIFICATION", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph(f"\nA la société : {f_soc}\nObjet : Notification du BC n° {bc_num}")
+        doc.add_paragraph(f"Votre offre a été retenue pour {f_amt} DHS TTC ({format_to_words_fr(f_amt)}).")
+        
+        doc.add_page_break()
+        apply_official_header(doc, st.session_state['logo_data'])
+        doc.add_heading(f"ORDRE DE SERVICE", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph(f"\nIl est prescrit à {f_soc} de commencer les travaux sous {f_delai} jours.")
+        
+        bio = BytesIO(); doc.save(bio)
+        st.download_button("📥 تحميل OS + Notification", bio.getvalue(), "OS_Notif.docx")
+
+# --- التبويب الثالث: صور الأوراش ---
+with tab_photos:
+    st.subheader("📸 تقرير صور الأوراش")
+    uploaded_imgs = st.file_uploader("ارفع صور الورش", accept_multiple_files=True)
+    if st.button("🚀 توليد تقرير الصور"):
+        doc = Document()
+        apply_official_header(doc, st.session_state['logo_data'])
+        doc.add_heading("REPORTAGE PHOTOGRAPHIQUE", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for img in uploaded_imgs:
+            doc.add_picture(BytesIO(img.getvalue()), width=Inches(4))
+            doc.add_paragraph("الوصف: .........................")
+        bio = BytesIO(); doc.save(bio)
+        st.download_button("📥 تحميل التقرير", bio.getvalue(), "Photos.docx")
