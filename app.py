@@ -27,21 +27,24 @@ def format_to_words_fr(amount_str):
 # --- 2. إعدادات الصفحة ---
 st.set_page_config(page_title="Commune Askaouen - Système PV", layout="wide")
 
+# --- 3. الواجهة الجانبية (إضافة الأعضاء الجدد) ---
 st.sidebar.header("Membres de la Commission")
 p_name = st.sidebar.text_input("Président", "MOHAMED ZILALI")
 d_name = st.sidebar.text_input("Directeur du service", "M BAREK BAK")
-t_name = st.sidebar.text_input("Technicien", "ATTAKY ABDELLATIF")
+t_name = st.sidebar.text_input("Technicien 1", "ATTAKY ABDELLATIF")
+s_name = st.sidebar.text_input("Service des dépenses", "NOUREDDIN SALHI")
+f_name = st.sidebar.text_input("Technicien 2", "FAYSSAL KADRI")
 
 st.title("🏛️ نظام استخراج المحاضر - جماعة أسكاون")
 
-# --- 3. التفاصيل الإدارية ---
+# --- 4. التفاصيل الإدارية ---
 with st.expander("📝 Détails Administratifs", expanded=True):
     c1, c2 = st.columns(2)
     num_bc = c1.text_input("N° BC", "01/ASK/2025")
     date_pub = c2.date_input("Date de publication", date(2025, 3, 25))
     obj_bc = st.text_area("Objet", "Location d’une Tractopelle pour les travaux divers.")
 
-# --- 4. جدول المتنافسين ---
+# --- 5. جدول المتنافسين ---
 st.subheader("📊 Liste des concurrents")
 df_init = pd.DataFrame([
     {"Rang": 1, "Nom": "STE OUBRAIM SARL", "Montant": "69840.00"},
@@ -54,7 +57,7 @@ data = st.data_editor(df_init, use_container_width=True)
 
 st.divider()
 
-# --- 5. منطق التحكم والمواعيد ---
+# --- 6. منطق التحكم والمواعيد ---
 c_pv1, c_pv2, c_pv3 = st.columns(3)
 pv_num = c_pv1.selectbox("Numéro du PV:", [1, 2, 3, 4, 5, 6])
 reunion_date = c_pv3.date_input("Date de la séance", date.today())
@@ -74,7 +77,7 @@ if pv_num == 6:
 else:
     is_final_attr = st.checkbox("✅ Est-ce le PV d'attribution finale ?")
 
-# --- 6. معالجة مستند Word ---
+# --- 7. إنشاء مستند Word ---
 if st.button("🚀 إنشاء المحضر"):
     doc = Document()
     section = doc.sections[0]
@@ -87,17 +90,23 @@ if st.button("🚀 إنشاء المحضر"):
     htable.rows[0].cells[1].paragraphs[0].text = "المملكة المغربية\nوزارة الداخلية\nجماعة أسكاون"
     htable.rows[0].cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-    # العنوان
-    doc.add_heading(f"{pv_num}éme Procès verbal", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # تصحيح تسمية المحضر الأول (1ére)
+    pv_title = f"{pv_num}ére" if pv_num == 1 else f"{pv_num}éme"
+    doc.add_heading(f"{pv_title} Procès verbal", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph("De la commission d’ouverture des plis\nProcédure Bon de commande").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     doc.add_paragraph(f"Objet : {obj_bc}").bold = True
     doc.add_paragraph(f"Le {reunion_date.strftime('%d/%m/%Y')} à {reunion_hour}, la commission composée de :")
-    doc.add_paragraph(f"- {p_name} : Président de la commission\n- {d_name} : Directeur du service\n- {t_name} : Technicien de la commune")
+    
+    # إضافة الأعضاء الخمسة للجنة
+    doc.add_paragraph(f"- {p_name} : Président de la commission")
+    doc.add_paragraph(f"- {d_name} : Directeur du service")
+    doc.add_paragraph(f"- {t_name} : Technicien de la commune")
+    doc.add_paragraph(f"- {s_name} : Service des dépenses")
+    doc.add_paragraph(f"- {f_name} : Technicien à la commune")
 
-    doc.add_paragraph(f"\nS’est réunie في salle de réunion de la commune concernant l’avis d’achat du bon de commande n° {num_bc} publié le : {date_pub.strftime('%d/%m/%Y')} sur le portail des marchés publics، ayant pour objet : {obj_bc}")
+    doc.add_paragraph(f"\nS’est réunie dans la salle de réunion de la commune concernant l’avis d’achat du bon de commande n° {num_bc} publié le : {date_pub.strftime('%d/%m/%Y')} sur le portail des marchés publics، ayant pour objet : {obj_bc}")
 
-    # تحديد الفهرس
     idx = min(pv_num - 1, len(data) - 1)
     curr_co = data.iloc[idx]
     amt_words = format_to_words_fr(curr_co['Montant'])
@@ -131,18 +140,21 @@ if st.button("🚀 إنشاء المحضر"):
     else:
         prev_co = data.iloc[idx - 1]
         doc.add_paragraph(f"Après vérification... la commission constate que la société {prev_co['Nom']} n’a pas confirmé son offre par lettre de confirmation.")
-        doc.add_paragraph(f"Après écartement de la société {prev_co['Nom']} le président invite la société : {curr_co['Nom']} (classé {pv_num}éme) pour un montant de {curr_co['Montant']} Dhs TTC {amt_words} à confirmer son offre، suspend la séance et fixe un rendez-vous le {next_meeting.strftime('%d/%m/%Y')} أو sur invitation.")
+        doc.add_paragraph(f"Après écartement de la société {prev_co['Nom']} le président invite la société : {curr_co['Nom']} (classé {pv_num}éme) pour un montant de {curr_co['Montant']} Dhs TTC {amt_words} à confirmer son offre، suspend la séance et fixe un rendez-vous le {next_meeting.strftime('%d/%m/%Y')} ou sur invitation.")
 
-    # التوقيعات
+    # التوقيعات (تشمل الأعضاء الجدد)
     doc.add_paragraph(f"\nAskaouen le {reunion_date.strftime('%d/%m/%Y')}").alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    sig_tab = doc.add_table(rows=1, cols=3)
+    sig_tab = doc.add_table(rows=2, cols=3)
     sig_tab.cell(0,0).text = p_name
     sig_tab.cell(0,1).text = d_name
     sig_tab.cell(0,2).text = t_name
-    for cell in sig_tab.rows[0].cells:
-        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sig_tab.cell(1,0).text = s_name
+    sig_tab.cell(1,1).text = f_name
+    for row in sig_tab.rows:
+        for cell in row.cells:
+            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     bio = BytesIO()
     doc.save(bio)
-    st.success(f"✅ تم تجهيز المحضر {pv_num} بنجاح!")
-    st.download_button(f"📥 تحميل الملف Docx", bio.getvalue(), f"PV_{pv_num}.docx")
+    st.success(f"✅ تم تحديث اللجنة وتصحيح عنوان المحضر {pv_num}!")
+    st.download_button(f"📥 تحميل المحضر رقم {pv_num}", bio.getvalue(), f"PV_{pv_num}.docx")
